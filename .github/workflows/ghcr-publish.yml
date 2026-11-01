@@ -5,6 +5,9 @@ on:
     branches: [develop]
   release:
     types: [published]
+  # Weekly rebuild so :latest picks up security fixes in the ubuntu base image.
+  schedule:
+    - cron: '45 5 * * 2'
   workflow_dispatch: {}
 
 permissions:
@@ -51,6 +54,32 @@ jobs:
           fi
           echo "tags=$TAGS" >> "$GITHUB_OUTPUT"
 
+      # Build into the local Docker daemon first and start it, so a broken
+      # image is never published as :latest.
+      - name: Build image for testing
+        uses: docker/build-push-action@v6
+        with:
+          context: ./docker/
+          file: ./docker/Dockerfile-local
+          load: true
+          tags: fsm:test
+
+      - name: Smoke test (container starts and the web UI answers)
+        run: |
+          docker run -d --name fsm -p 8080:80 fsm:test
+          # The entrypoint downloads the Factorio headless server first, so allow a few minutes
+          for i in $(seq 1 60); do
+            if curl -fsS -o /dev/null http://127.0.0.1:8080/; then
+              echo "web UI is up"; docker logs fsm | tail -20; exit 0
+            fi
+            if [ "$(docker inspect -f '{{.State.Running}}' fsm)" != "true" ]; then
+              echo "container exited"; docker logs fsm; exit 1
+            fi
+            sleep 5
+          done
+          echo "web UI did not answer within 5 minutes"; docker logs fsm; exit 1
+
+      # Same build again; every layer comes from the builder's cache, so this only pushes.
       - uses: docker/build-push-action@v6
         with:
           context: ./docker/
