@@ -2,5 +2,12 @@
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
   "extends": [
     "local>adman234/renovate-config"
+  ],
+  "packageRules": [
+    {
+      "description": "The test workflow runs on every PR, so merge minor and patch updates once it passes",
+      "matchUpdateTypes": ["minor", "patch", "pin", "digest"],
+      "automerge": true
+    }
   ]
 }
