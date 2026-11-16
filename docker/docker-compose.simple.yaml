@@ -1,9 +1,10 @@
-version: "3"
 services:
   factorio-server-manager:
-    image: "ofsm/ofsm:latest"
+    image: "ghcr.io/adman234/fsm:latest"
     container_name: "factorio-server-manager"
     restart: "unless-stopped"
+    # Give Factorio time to save the map on docker stop.
+    stop_grace_period: 60s
     environment:
       - "FACTORIO_VERSION=stable"
       - "RCON_PASS"

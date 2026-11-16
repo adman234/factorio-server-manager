@@ -36,8 +36,10 @@ func SetupAuth() {
 	}
 	sessionStore = sessions.NewCookieStore(cookieEncryptionKey)
 	sessionStore.Options = &sessions.Options{
-		Path:   "/",
-		Secure: config.Secure,
+		Path:     "/",
+		Secure:   config.Secure,
+		HttpOnly: true,
+		SameSite: http.SameSiteLaxMode,
 	}
 
 	auth.db, err = gorm.Open(sqlite.Open(config.SQLiteDatabaseFile), nil)

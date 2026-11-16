@@ -105,10 +105,12 @@ func init() {
 // remove a client from this hub and all of its rooms
 func (hub *wsHub) removeClient(client *wsClient) {
 	delete(hub.clients, client)
-	close(client.send)
+	// Leave every room before closing the send channel, otherwise a room could
+	// still try to deliver a message to the closed channel and panic.
 	for _, room := range hub.rooms {
 		room.unregister <- client
 	}
+	close(client.send)
 }
 
 // run starts a websocket hub, this has to be done in a subroutine `go hub.run()`
@@ -200,7 +202,10 @@ func (room *wsRoom) run() {
 				select {
 				case client.send <- message:
 				default:
-					room.unregister <- client
+					// The client is too slow. Drop it from this room directly:
+					// sending to room.unregister from inside this loop would
+					// deadlock, since this goroutine is the only reader.
+					delete(room.clients, client)
 				}
 			}
 

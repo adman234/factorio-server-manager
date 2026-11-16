@@ -1,76 +1,67 @@
 package factorio
 
 import (
+	"fmt"
 	"log"
-	"os"
+	"os/exec"
 	"strings"
 	"syscall"
 	"time"
 )
 
-func sendCtrlCToPid(pid int) {
-	d, e := syscall.LoadDLL("kernel32.dll")
-	if e != nil {
-		log.Fatalf("LoadDLL: %v\n", e)
+func sendCtrlCToPid(pid int) error {
+	d, err := syscall.LoadDLL("kernel32.dll")
+	if err != nil {
+		return fmt.Errorf("LoadDLL: %w", err)
 	}
-	p, e := d.FindProc("GenerateConsoleCtrlEvent")
-	if e != nil {
-		log.Fatalf("FindProc: %v\n", e)
+	p, err := d.FindProc("GenerateConsoleCtrlEvent")
+	if err != nil {
+		return fmt.Errorf("FindProc: %w", err)
 	}
-	r, _, e := p.Call(uintptr(syscall.CTRL_C_EVENT), uintptr(pid))
+	r, _, err := p.Call(uintptr(syscall.CTRL_C_EVENT), uintptr(pid))
 	if r == 0 {
-		log.Fatalf("GenerateConsoleCtrlEvent: %v\n", e)
+		return fmt.Errorf("GenerateConsoleCtrlEvent: %w", err)
 	}
+	return nil
 }
 
-func setCtrlHandlingIsDisabledForThisProcess(disabled bool) {
+func setCtrlHandlingIsDisabledForThisProcess(disabled bool) error {
 	disabledInt := 0
 	if disabled {
 		disabledInt = 1
 	}
 
-	d, e := syscall.LoadDLL("kernel32.dll")
-	if e != nil {
-		log.Fatalf("LoadDLL: %v\n", e)
+	d, err := syscall.LoadDLL("kernel32.dll")
+	if err != nil {
+		return fmt.Errorf("LoadDLL: %w", err)
 	}
-	p, e := d.FindProc("SetConsoleCtrlHandler")
-	if e != nil {
-		log.Fatalf("FindProc: %v\n", e)
+	p, err := d.FindProc("SetConsoleCtrlHandler")
+	if err != nil {
+		return fmt.Errorf("FindProc: %w", err)
 	}
-	r, _, e := p.Call(uintptr(0), uintptr(disabledInt))
+	r, _, err := p.Call(uintptr(0), uintptr(disabledInt))
 	if r == 0 {
-		log.Fatalf("SetConsoleCtrlHandler: %v\n", e)
+		return fmt.Errorf("SetConsoleCtrlHandler: %w", err)
 	}
+	return nil
 }
 
-func (server *Server) Kill() error {
-	err := server.Cmd.Process.Signal(os.Kill)
-	if err != nil {
-		if err.Error() == "os: process already finished" {
-			server.SetRunning(false)
-			return err
-		}
-		log.Printf("Error sending SIGKILL to Factorio process: %s", err)
+// interruptProcess sends CTRL+C to the console, which makes Factorio save the map.
+func interruptProcess(cmd *exec.Cmd) error {
+	// Disable our own handling of CTRL+C, so we don't close when we send it to the console.
+	if err := setCtrlHandlingIsDisabledForThisProcess(true); err != nil {
 		return err
 	}
-	server.SetRunning(false)
-	log.Println("Sent SIGKILL to Factorio process. Factorio forced to exit.")
-
-	return nil
-}
-
-func (server *Server) Stop() error {
-	// Disable our own handling of CTRL+C, so we don't close when we send it to the console.
-	setCtrlHandlingIsDisabledForThisProcess(true)
+	// Re-enable handling of CTRL+C after the event has been delivered.
+	defer func() {
+		time.Sleep(20 * time.Millisecond)
+		if err := setCtrlHandlingIsDisabledForThisProcess(false); err != nil {
+			log.Printf("could not re-enable CTRL+C handling: %s", err)
+		}
+	}()
 
 	// Send CTRL+C to all processes attached to the console (ourself, and the factorio server instance)
-	sendCtrlCToPid(0)
-	log.Println("Sent SIGINT to Factorio process. Factorio shutting down...")
-	time.Sleep(20 * time.Millisecond)
-	// Re-enable handling of CTRL+C after we're sure that the factorio server is shut down.
-	setCtrlHandlingIsDisabledForThisProcess(false)
-
-	return nil
+	return sendCtrlCToPid(0)
 }
 
 func (server *Server) checkProcessHealth(text string) {
@@ -81,6 +72,8 @@ func (server *Server) checkProcessHealth(text string) {
 		// for extra fun, there's no way to know when the server save has actually completed (unless we want
 		// to inject filesystem logic into what should be a process-level Stop() routine), so our best option
 		// is to just wait an arbitrary amount of time and hope that the save is successful in that time.
-		server.Cmd.Process.Signal(os.Kill)
+		if cmd, _ := server.runningCmd(); cmd != nil {
+			cmd.Process.Kill()
+		}
 	}
 }

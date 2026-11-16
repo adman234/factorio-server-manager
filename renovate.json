@@ -1,13 +1,47 @@
 {
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
   "extends": [
-    "local>adman234/renovate-config"
+    "local>adman234/renovate-config",
+    "local>adman234/renovate-config:automerge"
   ],
+  "osvVulnerabilityAlerts": true,
+  "vulnerabilityAlerts": {
+    "labels": ["security"]
+  },
+  "postUpdateOptions": ["gomodTidy", "gomodUpdateImportPaths"],
+  "lockFileMaintenance": {
+    "enabled": true,
+    "automerge": true
+  },
   "packageRules": [
     {
-      "description": "The test workflow runs on every PR, so merge minor and patch updates once it passes",
-      "matchUpdateTypes": ["minor", "patch", "pin", "digest"],
-      "automerge": true
+      "description": "Give new npm and Go releases a few days to be yanked before they are proposed and automerged",
+      "matchManagers": ["npm", "gomod"],
+      "minimumReleaseAge": "3 days"
+    },
+    {
+      "description": "Keep the Go version in go.mod and the golang build image in step",
+      "matchDepNames": ["go", "golang"],
+      "groupName": "Go toolchain",
+      "rangeStrategy": "bump"
+    },
+    {
+      "description": "Keep .nvmrc (CI and release builds) and the node build image in step",
+      "matchDepNames": ["node"],
+      "groupName": "Node.js"
+    },
+    {
+      "description": "One PR for non-major Go module updates; the test workflow and govulncheck gate the automerge",
+      "matchManagers": ["gomod"],
+      "matchDepTypes": ["require", "indirect"],
+      "matchUpdateTypes": ["minor", "patch", "digest"],
+      "groupName": "Go modules (non-major)"
+    },
+    {
+      "description": "One PR for non-major npm updates; the frontend build and image smoke test gate the automerge",
+      "matchManagers": ["npm"],
+      "matchUpdateTypes": ["minor", "patch"],
+      "groupName": "npm (non-major)"
     }
   ]
 }

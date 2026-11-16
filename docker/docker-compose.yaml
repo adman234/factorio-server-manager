@@ -1,12 +1,14 @@
-version: "3"
 services:
   factorio-server-manager:
-    image: "ofsm/ofsm:latest"
+    image: "ghcr.io/adman234/fsm:latest"
     container_name: "factorio-server-manager"
     restart: "unless-stopped"
+    # Give Factorio time to save the map on docker stop.
+    stop_grace_period: 60s
     environment:
       - "FACTORIO_VERSION=stable"
       - "RCON_PASS"
+      - "FSM_SECURE_COOKIES=true"
     volumes:
       - "./fsm-data:/opt/fsm-data"
       - "./factorio-data/saves:/opt/factorio/saves"
@@ -28,7 +30,7 @@ services:
       - "traefik.udp.routers.fsm.service=fsm"
       - "traefik.udp.services.fsm.loadbalancer.server.port=34197"
   traefik:
-    image: "traefik:v2.2"
+    image: "traefik:v3.7"
     container_name: "traefik"
     restart: "always"
     command:

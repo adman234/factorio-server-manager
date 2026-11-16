@@ -5,11 +5,10 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
-	"math/rand"
+	"math/rand/v2"
 	"os"
 	"path/filepath"
 	"runtime"
-	"time"
 
 	"github.com/gorilla/securecookie"
 	"github.com/jessevdk/go-flags"
@@ -22,7 +21,7 @@ type Flags struct {
 	FactorioIP         string `long:"game-bind-address" default:"0.0.0.0" description:"Specify IP for Factorio game server to listen on." env:"FSM_FACTORIO_IP"`
 	FactorioPort       string `long:"port" default:"80" description:"Specify a port for the server." env:"FSM_PORT"`
 	FactorioConfigFile string `long:"config" default:"config/config.ini" description:"Specify location of Factorio config.ini file." env:"FSM_FACTORIO_CONFIG_FILE"`
-	FactorioMaxUpload  int64  `long:"max-upload" default:"20" description:"Maximum filesize for uploaded files in MB." env:"FSM_MAX_UPLOAD"`
+	FactorioMaxUpload  int64  `long:"max-upload" default:"1024" description:"Maximum size of an upload (saves, mods) in MiB." env:"FSM_MAX_UPLOAD"`
 	FactorioBinary     string `long:"bin" default:"bin/x64/factorio" description:"Location of Factorio Server binary file." env:"FSM_BINARY"`
 	FactorioRconPort   int    `long:"rcon-port" default:"0" description:"Specify port for rcon admin console." env:"FSM_RCON_PORT"`
 	GlibcCustom        string `long:"glibc-custom" default:"false" description:"By default false, if custom glibc is required set this to true and add glibc-loc and glibc-lib-loc parameters." env:"FSM_GLIBC_CUSTOM"`
@@ -91,9 +90,6 @@ func NewConfig(args []string) Config {
 	instantiated.mapFlags(opts)
 	instantiated.loadServerConfig()
 
-	abs, err := filepath.Abs(instantiated.FactorioModPackDir)
-	println(abs)
-
 	return instantiated
 }
 
@@ -130,8 +126,7 @@ func (config *Config) updateConfigFile() {
 		// password is "factorio" .. change it
 		conf.FactorioRconPass = GenerateRandomPassword()
 
-		log.Println("Rcon password default one or empty, generated new one:")
-		log.Printf("Password: %s", conf.FactorioRconPass)
+		log.Println("Rcon password was default or empty, generated a new one and saved it to the config file")
 
 		resave = true
 	}
@@ -198,10 +193,9 @@ func (config *Config) loadServerConfig() {
 
 // Returns random port to use for rcon connection
 func randomPort() int {
-	// rand needs to be initialized, else we always get the same number
-	rand.Seed(time.Now().UnixNano())
+
 	// get a random number between 40000 and 45000
-	return rand.Intn(5000) + 40000
+	return rand.IntN(5000) + 40000
 }
 
 func (config *Config) mapFlags(flags Flags) {
@@ -224,7 +218,7 @@ func (config *Config) mapFlags(flags Flags) {
 	config.ConsoleLogFile = filepath.Join(flags.FactorioDir, "factorio-server-console.log")
 	config.FactorioRconPort = flags.FactorioRconPort
 
-	config.MaxUploadSize = flags.FactorioMaxUpload * 100000
+	config.MaxUploadSize = flags.FactorioMaxUpload << 20
 	log.Printf("Max upload: %d", config.MaxUploadSize)
 	log.Printf("Conffile: %s", config.ConfFile)
 

@@ -21,8 +21,21 @@ But remember that if `.env` file is present, values set there take precedence ov
 Now you can start the container by running:
 
 ```
-docker-compose up -d
+docker compose up -d
 ```
+
+### Environment variables
+
+| Variable | Default | Description |
+| --- | --- | --- |
+| `FACTORIO_VERSION` | `stable` | `stable`, `latest` (experimental) or an exact version such as `2.0.72`. |
+| `FACTORIO_ALLOW_MAJOR_UPGRADE` | `false` | Allow `stable`/`latest` to move to a new major release (e.g. 1.1 → 2.0). |
+| `RCON_PASS` | empty | RCON password. Applied on every start; generated and saved to `fsm-data/conf.json` when empty. |
+| `FSM_SECURE_COOKIES` | `false` | Mark the login cookie `Secure`. Set to `true` only when FSM is served over HTTPS (the Traefik compose file does this). |
+| `FSM_AUTOSTART` | `false` | Start the Factorio server with the latest save when the container starts. |
+| `PUID` / `PGID` | unset (root) | Run FSM and Factorio as this user and group. Volume contents are `chown`ed to them on start. |
+
+`docker stop` saves the map before Factorio exits. Keep `stop_grace_period` (60s in the compose files) long enough for a large map to save.
 
 ### Simple configuration without HTTPS
 
@@ -30,14 +43,17 @@ If you don't care about HTTPS and want to run just the Factorio Server Manager, 
 
 Ignore `DOMAIN_NAME` and `EMAIL_ADDREESS` variables in `.env` file and run
 ```
-docker-compose -f docker-compose.simple.yaml up -d
+docker compose -f docker-compose.simple.yaml up -d
 ```
 
 ### Factorio version
 
-By default container will download the latest version of factorio. If you want to use specific version, you can change
-the value of `FACTORIO_VERSION=latest` variable in the `docker-compose.yaml` file.
-Any version can be used. Using `latest` will download the newest beta version. Using `stable` will download the newest stable version.
+By default the container installs the newest stable version of Factorio. To use a specific version, change
+`FACTORIO_VERSION` in the compose file. `latest` installs the newest experimental version.
+
+Factorio is only downloaded when the installed version differs from the requested one, and a failed download
+keeps the installed version. While following `stable` or `latest`, the container will not move to a new major
+release on its own; it logs a warning instead, so you can back up your saves first.
 
 ## Accessing the application
 
@@ -68,18 +84,16 @@ For now, you can't update/downgrade the Factorio version from the UI.
 
 You can however do this using docker images while sustaining your security settings and map/modfiles.
 
-If you want to update Factorio to the latest version:
-1. Save your game and stop Factorio server in FSM UI.
-2. Run `docker-compose restart` (or `docker-compose -f docker-compose.simple.yaml restart` if you are using simple configuration).
-
-After container starts, latest Factorio version will be downloaded and installed.
+If you want to update Factorio to the latest version, run `docker compose restart` (or
+`docker compose -f docker-compose.simple.yaml restart` if you are using the simple configuration).
+The running game is saved when the container stops, and the new version is installed when it starts.
 
 ## Security
 
 Authentication is supported in the application, but it is recommended to ensure access to the Factorio manager UI is accessible via VPN or internal network.
 
 ## Development
-For development purposes it also has the ability to create the docker image from local sourcecode. This is done by running `build.sh` in the `docker` directory. This will delete all old executables and the node_modules directory (runs `make build`). The created docker image will have the tag `factorio-server-manager:dev`.
+For development purposes it also has the ability to create the docker image from local sourcecode. This is done by running `docker/build.sh`, which builds the frontend and backend inside Docker from `docker/Dockerfile`. The created docker image will have the tag `factorio-server-manager:dev`.
 
 ### Creating release bundles
 A Dockerfile-build file is included for creating the release bundles. Use Docker version 20 in order to use the BUILDKIT environment, some issues have been encountered with Docker version 19.
