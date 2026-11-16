@@ -360,7 +360,7 @@ func LoadModsFromSaveHandler(w http.ResponseWriter, r *http.Request) {
 	defer f.Close()
 
 	var header factorio.SaveHeader
-	err = header.ReadFrom(f)
+	err = header.Decode(f)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		resp = fmt.Sprintf("cannot read save header: %v", err)
