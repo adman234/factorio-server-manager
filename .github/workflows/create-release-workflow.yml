@@ -1,45 +1,38 @@
+name: Release bundles
+
 on:
   release:
     types: [published]
+
+permissions:
+  contents: write
+
 jobs:
   add-assets-to-release:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v2
-      - uses: actions/setup-node@v2
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
         with:
-          node-version: '16'
-      - uses: actions/setup-go@v2
-      - name: Install mingw-w64
-        run: sudo apt-get update && sudo apt-get install gcc-multilib g++-multilib gcc-mingw-w64 g++-mingw-w64
-      - name: Get git tag
-        id: tag_name
-        uses: little-core-labs/get-git-tag@v3.0.2
-      - name: Get release
-        id: get_release
-        uses: bruceadams/get-release@v1.2.2
-        env:
-          GITHUB_TOKEN: ${{ github.token }}
+          node-version-file: .nvmrc
+          cache: npm
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: src/go.mod
+          go-version: stable
+          cache-dependency-path: src/go.sum
       - name: Create release bundles
         run: make gen_release
-      - name: Upload release (windows)
-        uses: actions/upload-release-asset@v1.0.2
+      - name: Upload release bundles
         env:
-          GITHUB_TOKEN: ${{ github.token }}
-        with:
-          upload_url: ${{ steps.get_release.outputs.upload_url }}
-          asset_path: ./build/factorio-server-manager-windows.zip
-          asset_name: factorio-server-manager-windows-${{ steps.tag_name.outputs.tag }}.zip
-          asset_content_type: application/octet-stream
-      - name: Upload release (linux)
-        uses: actions/upload-release-asset@v1.0.2
-        env:
-          GITHUB_TOKEN: ${{ github.token }}
-        with:
-          upload_url: ${{ steps.get_release.outputs.upload_url }}
-          asset_path: ./build/factorio-server-manager-linux.zip
-          asset_name: factorio-server-manager-linux-${{ steps.tag_name.outputs.tag }}.zip
-          asset_content_type: application/octet-stream
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.event.release.tag_name }}
+        run: |
+          cp build/factorio-server-manager-windows.zip "factorio-server-manager-windows-$TAG.zip"
+          cp build/factorio-server-manager-linux.zip "factorio-server-manager-linux-$TAG.zip"
+          gh release upload "$TAG" --clobber \
+            "factorio-server-manager-windows-$TAG.zip" \
+            "factorio-server-manager-linux-$TAG.zip"
   # Docker publish for releases is handled by ghcr-publish.yml instead
   # (pushes to ghcr.io using the built-in GITHUB_TOKEN, no Docker Hub
   # secrets required, which this fork doesn't have).

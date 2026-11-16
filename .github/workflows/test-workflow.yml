@@ -1,3 +1,5 @@
+name: Test
+
 on:
   push:
     branches:
@@ -7,12 +9,21 @@ on:
   pull_request:
     branches:
       - '**'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event_name }}-${{ github.ref }}
+  cancel-in-progress: true
+
 env:
   factorio_password: ${{ secrets.FACTORIO_PASSWORD }}
   factorio_username: ${{ secrets.FACTORIO_USERNAME }}
   FSM_MODPACK_DIR: 'dev_pack'
   FSM_DIR: '../'
   FSM_CONF: '../../conf.json.example'
+
 jobs:
   test-npm:
     strategy:
@@ -20,39 +31,66 @@ jobs:
         os: [ubuntu-latest, windows-latest]
     runs-on: ${{ matrix.os }}
     steps:
-      - uses: actions/checkout@v2
-      - uses: actions/setup-node@v2
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+          cache: npm
       - run: make app/bundle
+
   test-go:
     strategy:
+      fail-fast: false
       matrix:
         os: [ubuntu-latest, windows-latest]
-        go: ['1.18', '1.20', '1']
+        # go.mod: the minimum version from the go directive; stable: the newest release
+        go: [go.mod, stable]
     runs-on: ${{ matrix.os }}
     name: test-go ${{ matrix.go }} (${{ matrix.os }})
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v7
       - name: Setup go
-        uses: actions/setup-go@v2
+        uses: actions/setup-go@v7
         with:
-          go-version: ${{ matrix.go }}
-      - if: contains(matrix.os, 'ubuntu')
+          go-version-file: src/go.mod
+          go-version: ${{ matrix.go == 'stable' && 'stable' || '' }}
+          cache-dependency-path: src/go.sum
+      - name: Check go.mod and go.sum are tidy
+        if: contains(matrix.os, 'ubuntu')
+        working-directory: src
         run: |
-          cd src
+          go mod tidy
+          git diff --exit-code -- go.mod go.sum
+      - name: go vet
+        working-directory: src
+        run: go vet ./...
+      - if: contains(matrix.os, 'ubuntu')
+        working-directory: src
+        shell: bash
+        run: |
           if [[ -z "$factorio_password" ]]; then
             echo "run only short tests"
-            go test ./... -v -test.short
+            go test ./... -v -race -test.short
           else
             echo "run full test suit"
-            go test ./... -v
+            go test ./... -v -race
           fi
       - if: contains(matrix.os, 'windows')
+        working-directory: src
+        shell: pwsh
         run: |
-          cd src
-          if ([Environment]::GetEnvironmentVariable('factorio_password', 'Machine')) {
+          if ($env:factorio_password) {
             echo "run full test suit"
             go test ./... -v
           } else {
             echo "run only short tests"
             go test ./... -v "-test.short"
           }
+
+  govulncheck:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: golang/govulncheck-action@v1
+        with:
+          go-version-input: stable
+          work-dir: src

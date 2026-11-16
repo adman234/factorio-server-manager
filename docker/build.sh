@@ -1,10 +1,5 @@
 #!/bin/bash
-set -eou pipefail
-(
-  cd ..
-  make build
-  cp build/factorio-server-manager-linux.zip docker/factorio-server-manager-linux.zip
-)
-docker build -f Dockerfile-local -t factorio-server-manager:dev .
-
-rm factorio-server-manager-linux.zip
+# Builds the image from the local checkout (frontend and backend are compiled inside Docker).
+set -euo pipefail
+cd "$(dirname "$0")/.."
+docker build -f docker/Dockerfile -t factorio-server-manager:dev "$@" .

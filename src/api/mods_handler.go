@@ -211,6 +211,10 @@ func ModUploadHandler(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json;charset=UTF-8")
 
+	if resp = parseUploadForm(w, r); resp != nil {
+		return
+	}
+
 	formFile, fileHeader, err := r.FormFile("mod_file")
 	if err != nil {
 		resp = fmt.Sprintf("error getting uploaded file: %s", err)
@@ -244,6 +248,7 @@ func ModUploadHandler(w http.ResponseWriter, r *http.Request) {
 			w.WriteHeader(http.StatusBadRequest)
 			return
 		}
+		defer file.Close()
 		_, err = io.Copy(file, formFile)
 		if err != nil {
 			resp = fmt.Sprintf("error saving %s: %s", fileHeader.Filename, err)

@@ -1,25 +1,34 @@
 package factorio
 
 import (
+	"bufio"
 	"log"
+	"os"
 
 	"github.com/OpenFactorioServerManager/factorio-server-manager/bootstrap"
-	"github.com/hpcloud/tail"
 )
 
+// TailLog returns every line of the Factorio log file.
 func TailLog() ([]string, error) {
 	result := []string{}
 
 	config := bootstrap.GetConfig()
 
-	t, err := tail.TailFile(config.FactorioLog, tail.Config{Follow: false})
+	f, err := os.Open(config.FactorioLog)
 	if err != nil {
-		log.Printf("Error tailing log %s", err)
+		log.Printf("Error reading log %s", err)
 		return result, err
 	}
+	defer f.Close()
 
-	for line := range t.Lines {
-		result = append(result, line.Text)
+	scanner := bufio.NewScanner(f)
+	scanner.Buffer(make([]byte, 64*1024), 1024*1024)
+	for scanner.Scan() {
+		result = append(result, scanner.Text())
+	}
+	if err := scanner.Err(); err != nil {
+		log.Printf("Error reading log %s", err)
+		return result, err
 	}
 
 	return result, nil

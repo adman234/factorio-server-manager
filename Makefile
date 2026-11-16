@@ -22,7 +22,7 @@ build/factorio-server-manager-%.zip: clean app/bundle factorio-server-manager-%
 
 app/bundle:
 	@echo "Building Frontend"
-	@npm install && npm run build
+	@npm ci && npm run build
 
 factorio-server-manager-linux:
 	@echo "Building Backend - Linux"
@@ -48,6 +48,5 @@ clean:
 	@-rm app/style.css.map
 	@-rm -r app/fonts/vendor/
 	@-rm -r app/images/vendor/
-	@-rm -rf node_modules/
 	@-rm -r pkg/
 	@-rm -r factorio-server-manager

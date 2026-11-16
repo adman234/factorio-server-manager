@@ -1,6 +1,7 @@
 package bootstrap
 
 import (
+	"crypto/rand"
 	"encoding/base64"
 	"encoding/json"
 	"github.com/glebarez/sqlite"
@@ -8,7 +9,6 @@ import (
 	"golang.org/x/crypto/bcrypt"
 	"gorm.io/gorm"
 	"log"
-	"math/rand"
 	"os"
 )
 
@@ -118,12 +118,23 @@ func MigrateLevelDBToSqlite(oldDBFile, newDBFile string) {
 	}
 }
 
-var randLetters = []rune("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ")
+const randLetters = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
 
+// GenerateRandomPassword returns a 24 letter password from a cryptographically
+// secure source (about 137 bits of entropy).
 func GenerateRandomPassword() string {
-	pass := make([]rune, 24)
-	for i := range pass {
-		pass[i] = randLetters[rand.Intn(len(randLetters))]
+	pass := make([]byte, 24)
+	buf := make([]byte, 1)
+	for i := 0; i < len(pass); {
+		if _, err := rand.Read(buf); err != nil {
+			panic(err) // crypto/rand.Read never fails on supported platforms
+		}
+		// rejection sampling: 208 = 4*52, keeps the distribution uniform
+		if buf[0] >= 208 {
+			continue
+		}
+		pass[i] = randLetters[int(buf[0])%len(randLetters)]
+		i++
 	}
 	return string(pass)
 }
